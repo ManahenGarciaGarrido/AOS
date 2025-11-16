@@ -80,7 +80,7 @@ function Test-ApiEndpoint {
     )
 
     Write-Host ""
-    Write-ColorOutput "=== $CaseNumber: $CaseName ===" "Cyan"
+    Write-ColorOutput "=== ${CaseNumber}: ${CaseName} ===" "Cyan"
     Write-Host "   URL: $Url" -ForegroundColor Gray
     Write-Host "   Method: $Method" -ForegroundColor Gray
 
