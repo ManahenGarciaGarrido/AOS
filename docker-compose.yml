@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MySQL Database Service
   mysql:
@@ -41,7 +39,7 @@ services:
 
   # Eureka Discovery Server
   discovery-server:
-    build: ./codigo/discovery-server
+    build: ./codigo/eureka-server
     container_name: discovery-server
     ports:
       - "8761:8761"
