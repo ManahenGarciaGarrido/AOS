@@ -19,25 +19,25 @@ function Write-ColorOutput {
 function Write-Header {
     param([string]$Title)
     Write-Host ""
-    Write-ColorOutput "╔════════════════════════════════════════════════════════════════╗" "Cyan"
-    Write-ColorOutput "║  $Title" "Cyan"
-    Write-ColorOutput "╚════════════════════════════════════════════════════════════════╝" "Cyan"
+    Write-ColorOutput "================================================================" "Cyan"
+    Write-ColorOutput "  $Title" "Cyan"
+    Write-ColorOutput "================================================================" "Cyan"
     Write-Host ""
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-ColorOutput "✓ $Message" "Green"
+    Write-ColorOutput "[OK] $Message" "Green"
 }
 
 function Write-Error {
     param([string]$Message)
-    Write-ColorOutput "✗ $Message" "Red"
+    Write-ColorOutput "[ERROR] $Message" "Red"
 }
 
 function Write-Info {
     param([string]$Message)
-    Write-ColorOutput "ℹ $Message" "Yellow"
+    Write-ColorOutput "[INFO] $Message" "Yellow"
 }
 
 function Test-ServiceHealth {
@@ -54,7 +54,7 @@ function Test-ServiceHealth {
         try {
             $response = Invoke-WebRequest -Uri $Url -Method GET -TimeoutSec 2 -ErrorAction Stop
             if ($response.StatusCode -eq 200) {
-                Write-Success "$ServiceName está funcionando! (Intento $i/$MaxRetries)"
+                Write-Success "$ServiceName esta funcionando! (Intento $i/$MaxRetries)"
                 return $true
             }
         }
@@ -64,7 +64,8 @@ function Test-ServiceHealth {
         }
     }
 
-    Write-Error "$ServiceName no responde después de $MaxRetries intentos"
+    Write-Host ""
+    Write-Error "$ServiceName no responde despues de $MaxRetries intentos"
     return $false
 }
 
@@ -77,7 +78,17 @@ function Start-Service {
 
     Write-Info "Iniciando $ServiceName en puerto $Port..."
 
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$Path'; Write-Host 'Iniciando $ServiceName...' -ForegroundColor Cyan; mvn spring-boot:run" -WindowStyle Normal
+    # Crear script temporal para evitar problemas de comillas
+    $scriptBlock = @"
+cd "$Path"
+Write-Host "Iniciando $ServiceName..." -ForegroundColor Cyan
+mvn spring-boot:run
+"@
+
+    $scriptPath = "$env:TEMP\start-$ServiceName-$Port.ps1"
+    $scriptBlock | Out-File -FilePath $scriptPath -Encoding UTF8
+
+    Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $scriptPath -WindowStyle Normal
 
     Start-Sleep -Seconds 3
     Write-Success "$ServiceName iniciado (ventana separada)"
@@ -96,7 +107,7 @@ function Test-ApiEndpoint {
 
     try {
         if ($Body) {
-            $jsonBody = $Body | ConvertTo-Json
+            $jsonBody = $Body | ConvertTo-Json -Depth 10
             $response = Invoke-RestMethod -Uri $Url -Method $Method -Body $jsonBody -ContentType "application/json" -ErrorAction Stop
         } else {
             $response = Invoke-RestMethod -Uri $Url -Method $Method -ErrorAction Stop
@@ -116,7 +127,7 @@ function Test-ApiEndpoint {
         return $true
     }
     catch {
-        Write-Error "Error en la petición: $($_.Exception.Message)"
+        Write-Error "Error en la peticion: $($_.Exception.Message)"
         return $false
     }
 }
@@ -132,14 +143,14 @@ $fechaActual = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-ColorOutput "Fecha: $fechaActual" "Cyan"
 Write-Host ""
 
-Write-ColorOutput "Este script realizará las siguientes acciones:" "Yellow"
+Write-ColorOutput "Este script realizara las siguientes acciones:" "Yellow"
 Write-Host "  1. Iniciar todos los microservicios en ventanas separadas" -ForegroundColor Gray
-Write-Host "  2. Verificar que cada servicio esté funcionando" -ForegroundColor Gray
+Write-Host "  2. Verificar que cada servicio este funcionando" -ForegroundColor Gray
 Write-Host "  3. Ejecutar pruebas de endpoints" -ForegroundColor Gray
 Write-Host "  4. Mostrar resultados de forma visual" -ForegroundColor Gray
 Write-Host ""
 
-$continue = Read-Host "¿Desea continuar? (S/N)"
+$continue = Read-Host "Desea continuar? (S/N)"
 if ($continue -ne "S" -and $continue -ne "s") {
     Write-Info "Script cancelado por el usuario"
     exit
@@ -154,10 +165,10 @@ $projectRoot = $PSScriptRoot
 Write-Header "FASE 1: Iniciando Servicios de Infraestructura"
 
 # Eureka Server
-Start-Service -ServiceName "Eureka Server" -Path "$projectRoot\codigo\eureka-server" -Port 8761
+Start-Service -ServiceName "Eureka-Server" -Path "$projectRoot\codigo\eureka-server" -Port 8761
 Write-Host ""
 
-# Esperar a que Eureka esté listo
+# Esperar a que Eureka este listo
 if (-not (Test-ServiceHealth -ServiceName "Eureka Server" -Url "http://localhost:8761")) {
     Write-Error "No se pudo iniciar Eureka Server. Abortando..."
     exit 1
@@ -167,7 +178,7 @@ Write-Host ""
 Start-Sleep -Seconds 5
 
 # Config Server
-Start-Service -ServiceName "Config Server" -Path "$projectRoot\codigo\config-server" -Port 8888
+Start-Service -ServiceName "Config-Server" -Path "$projectRoot\codigo\config-server" -Port 8888
 Write-Host ""
 
 if (-not (Test-ServiceHealth -ServiceName "Config Server" -Url "http://localhost:8888/actuator/health")) {
@@ -186,7 +197,7 @@ Start-Sleep -Seconds 10
 Write-Header "FASE 2: Iniciando Microservicios de Negocio"
 
 # Products Service
-Start-Service -ServiceName "Products Service" -Path "$projectRoot\codigo\products-service" -Port 8081
+Start-Service -ServiceName "Products-Service" -Path "$projectRoot\codigo\products-service" -Port 8081
 Write-Host ""
 Start-Sleep -Seconds 15
 
@@ -195,7 +206,7 @@ if (-not (Test-ServiceHealth -ServiceName "Products Service" -Url "http://localh
 }
 
 # Orders Service
-Start-Service -ServiceName "Orders Service" -Path "$projectRoot\codigo\orders-service" -Port 8091
+Start-Service -ServiceName "Orders-Service" -Path "$projectRoot\codigo\orders-service" -Port 8091
 Write-Host ""
 Start-Sleep -Seconds 15
 
@@ -204,7 +215,7 @@ if (-not (Test-ServiceHealth -ServiceName "Orders Service" -Url "http://localhos
 }
 
 # Logistics Service
-Start-Service -ServiceName "Logistics Service" -Path "$projectRoot\codigo\logistics-service" -Port 8101
+Start-Service -ServiceName "Logistics-Service" -Path "$projectRoot\codigo\logistics-service" -Port 8101
 Write-Host ""
 Start-Sleep -Seconds 15
 
@@ -213,7 +224,7 @@ if (-not (Test-ServiceHealth -ServiceName "Logistics Service" -Url "http://local
 }
 
 # Users Service
-Start-Service -ServiceName "Users Service" -Path "$projectRoot\codigo\users-service" -Port 8111
+Start-Service -ServiceName "Users-Service" -Path "$projectRoot\codigo\users-service" -Port 8111
 Write-Host ""
 Start-Sleep -Seconds 15
 
@@ -222,7 +233,7 @@ if (-not (Test-ServiceHealth -ServiceName "Users Service" -Url "http://localhost
 }
 
 # Gateway Service
-Start-Service -ServiceName "Gateway Service" -Path "$projectRoot\codigo\gateway-service" -Port 8080
+Start-Service -ServiceName "Gateway-Service" -Path "$projectRoot\codigo\gateway-service" -Port 8080
 Write-Host ""
 Start-Sleep -Seconds 15
 
@@ -243,35 +254,35 @@ Write-Header "FASE 3: Ejecutando Pruebas de Endpoints"
 
 $testResults = @()
 
-# Prueba 1: Crear Categoría
+# Prueba 1: Crear Categoria
 Write-Host ""
-Write-ColorOutput "═══ TEST 1: Crear Categoría ═══" "Cyan"
+Write-ColorOutput "=== TEST 1: Crear Categoria ===" "Cyan"
 $category = @{
     code = "AZUL001"
-    name = "Azulejos Baño"
-    description = "Azulejos para baño"
+    name = "Azulejos Bano"
+    description = "Azulejos para bano"
 }
 $result = Test-ApiEndpoint -Name "POST /products/categories" -Url "http://localhost:8081/categories" -Method "POST" -Body $category
-$testResults += @{ Test = "Crear Categoría"; Result = $result }
+$testResults += @{ Test = "Crear Categoria"; Result = $result }
 
 Start-Sleep -Seconds 2
 
-# Prueba 2: Listar Categorías
+# Prueba 2: Listar Categorias
 Write-Host ""
-Write-ColorOutput "═══ TEST 2: Listar Categorías ═══" "Cyan"
+Write-ColorOutput "=== TEST 2: Listar Categorias ===" "Cyan"
 $result = Test-ApiEndpoint -Name "GET /products/categories" -Url "http://localhost:8081/categories"
-$testResults += @{ Test = "Listar Categorías"; Result = $result }
+$testResults += @{ Test = "Listar Categorias"; Result = $result }
 
 Start-Sleep -Seconds 2
 
 # Prueba 3: Crear Proveedor
 Write-Host ""
-Write-ColorOutput "═══ TEST 3: Crear Proveedor ═══" "Cyan"
+Write-ColorOutput "=== TEST 3: Crear Proveedor ===" "Cyan"
 $supplier = @{
-    name = "Cerámicas Romu S.L."
+    name = "Ceramicas Romu S.L."
     nif = "B12345678"
     city = "Valencia"
-    country = "España"
+    country = "Espana"
     phone = "+34 960 000 000"
     email = "contacto@ceramicasromu.com"
 }
@@ -280,24 +291,24 @@ $testResults += @{ Test = "Crear Proveedor"; Result = $result }
 
 Start-Sleep -Seconds 2
 
-# Prueba 4: Crear Almacén
+# Prueba 4: Crear Almacen
 Write-Host ""
-Write-ColorOutput "═══ TEST 4: Crear Almacén ═══" "Cyan"
+Write-ColorOutput "=== TEST 4: Crear Almacen ===" "Cyan"
 $warehouse = @{
     code = "ALM001"
-    name = "Almacén Central Valencia"
+    name = "Almacen Central Valencia"
     city = "Valencia"
     latitude = 39.4699
     longitude = -0.3763
 }
 $result = Test-ApiEndpoint -Name "POST /products/warehouses" -Url "http://localhost:8081/warehouses" -Method "POST" -Body $warehouse
-$testResults += @{ Test = "Crear Almacén"; Result = $result }
+$testResults += @{ Test = "Crear Almacen"; Result = $result }
 
 Start-Sleep -Seconds 2
 
 # Prueba 5: Crear Usuario
 Write-Host ""
-Write-ColorOutput "═══ TEST 5: Crear Usuario ═══" "Cyan"
+Write-ColorOutput "=== TEST 5: Crear Usuario ===" "Cyan"
 $user = @{
     username = "admin"
     password = "admin123"
@@ -312,7 +323,7 @@ Start-Sleep -Seconds 2
 
 # Prueba 6: Login
 Write-Host ""
-Write-ColorOutput "═══ TEST 6: Login de Usuario ═══" "Cyan"
+Write-ColorOutput "=== TEST 6: Login de Usuario ===" "Cyan"
 $credentials = @{
     username = "admin"
     password = "admin123"
@@ -322,9 +333,9 @@ $testResults += @{ Test = "Login Usuario"; Result = $result }
 
 Start-Sleep -Seconds 2
 
-# Prueba 7: Crear Camión
+# Prueba 7: Crear Camion
 Write-Host ""
-Write-ColorOutput "═══ TEST 7: Crear Camión ═══" "Cyan"
+Write-ColorOutput "=== TEST 7: Crear Camion ===" "Cyan"
 $truck = @{
     licensePlate = "1234ABC"
     brand = "Mercedes"
@@ -333,13 +344,13 @@ $truck = @{
     status = "DISPONIBLE"
 }
 $result = Test-ApiEndpoint -Name "POST /logistics/trucks" -Url "http://localhost:8101/trucks" -Method "POST" -Body $truck
-$testResults += @{ Test = "Crear Camión"; Result = $result }
+$testResults += @{ Test = "Crear Camion"; Result = $result }
 
 Start-Sleep -Seconds 2
 
 # Prueba 8: Verificar Eureka
 Write-Host ""
-Write-ColorOutput "═══ TEST 8: Servicios Registrados en Eureka ═══" "Cyan"
+Write-ColorOutput "=== TEST 8: Servicios Registrados en Eureka ===" "Cyan"
 $result = Test-ApiEndpoint -Name "GET Eureka Applications" -Url "http://localhost:8761/eureka/apps"
 $testResults += @{ Test = "Eureka Registry"; Result = $result }
 
@@ -363,14 +374,14 @@ foreach ($test in $testResults) {
 }
 
 Write-Host ""
-Write-ColorOutput "════════════════════════════════════" "Cyan"
+Write-ColorOutput "====================================" "Cyan"
 Write-ColorOutput "Total de pruebas: $total" "White"
 Write-ColorOutput "Exitosas: $passed" "Green"
 Write-ColorOutput "Fallidas: $failed" "Red"
-Write-ColorOutput "════════════════════════════════════" "Cyan"
+Write-ColorOutput "====================================" "Cyan"
 
 # ==========================================
-# INFORMACIÓN DE URLS
+# INFORMACION DE URLS
 # ==========================================
 
 Write-Host ""
@@ -384,7 +395,7 @@ Write-ColorOutput "Logistics Service:     http://localhost:8101" "Yellow"
 Write-ColorOutput "Users Service:         http://localhost:8111" "Yellow"
 
 Write-Host ""
-Write-ColorOutput "═══ Swagger UI ═══" "Cyan"
+Write-ColorOutput "=== Swagger UI ===" "Cyan"
 Write-ColorOutput "Products:  http://localhost:8081/swagger-ui/index.html" "Yellow"
 Write-ColorOutput "Orders:    http://localhost:8091/swagger-ui/index.html" "Yellow"
 Write-ColorOutput "Logistics: http://localhost:8101/swagger-ui/index.html" "Yellow"
@@ -392,7 +403,7 @@ Write-ColorOutput "Users:     http://localhost:8111/swagger-ui/index.html" "Yell
 
 Write-Host ""
 Write-Success "Script de pruebas completado!"
-Write-Info "Los servicios seguirán ejecutándose en las ventanas abiertas"
+Write-Info "Los servicios seguiran ejecutandose en las ventanas abiertas"
 Write-Info "Cierra las ventanas manualmente cuando quieras detener los servicios"
 
 Write-Host ""
