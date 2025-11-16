@@ -1,1 +1,5 @@
-spring.application.name: orders-service
+spring:
+  application:
+    name: orders-service
+  config:
+    import: optional:configserver:http://localhost:8888
