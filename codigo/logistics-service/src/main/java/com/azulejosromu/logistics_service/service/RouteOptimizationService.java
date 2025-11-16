@@ -125,7 +125,7 @@ public class RouteOptimizationService {
         // Añadir distancia de vuelta al almacén
         totalDistance += distance(previous, new Point(WAREHOUSE_LAT, WAREHOUSE_LON));
 
-        return new BigDecimal(totalDistance).setScale(2, BigDecimal.ROUND_HALF_UP);
+        return new BigDecimal(totalDistance).setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     private List<OrderData> getOrdersData(List<Long> orderIds) {
@@ -142,6 +142,7 @@ public class RouteOptimizationService {
                 for (Long orderId : orderIds) {
                     String url = uri + "/orders/" + orderId;
                     try {
+                        @SuppressWarnings("unchecked")
                         Map<String, Object> orderMap = restTemplate.getForObject(url, Map.class);
                         if (orderMap != null) {
                             OrderData order = new OrderData();
