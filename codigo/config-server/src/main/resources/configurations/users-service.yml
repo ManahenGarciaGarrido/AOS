@@ -1,0 +1,16 @@
+server:
+  port: 8111
+
+spring:
+  application:
+    name: users-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/users_db?createDatabaseIfNotExist=true
+    username: root
+    password: root
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
