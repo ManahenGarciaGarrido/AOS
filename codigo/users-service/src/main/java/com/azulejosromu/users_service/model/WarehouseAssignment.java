@@ -2,6 +2,7 @@ package com.azulejosromu.users_service.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -23,6 +24,12 @@ public class WarehouseAssignment {
     private Boolean isPrimary = false;
 
     private Boolean active = true;
+
+    @Column(name = "is_current")
+    private Boolean isCurrent = true;
+
+    @Column(name = "assignment_date")
+    private LocalDate assignmentDate;
 
     @Column(name = "assigned_at")
     private LocalDateTime assignedAt = LocalDateTime.now();

@@ -42,6 +42,9 @@ public class AuditLog {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(columnDefinition = "TEXT")
+    private String details;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 }
