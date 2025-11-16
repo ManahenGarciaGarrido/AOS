@@ -11,6 +11,7 @@ import java.util.List;
 public interface GpsTrackingRepository extends JpaRepository<GpsTracking, Long> {
     List<GpsTracking> findByRouteId(Long routeId);
     List<GpsTracking> findByTruckId(Long truckId);
+    List<GpsTracking> findByTruckIdOrderByRecordedAtDesc(Long truckId);
     List<GpsTracking> findByRouteIdOrderByRecordedAtDesc(Long routeId);
     List<GpsTracking> findByRecordedAtBetween(LocalDateTime start, LocalDateTime end);
 }
