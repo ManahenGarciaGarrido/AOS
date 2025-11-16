@@ -128,7 +128,8 @@ function Test-ApiEndpoint {
 Clear-Host
 Write-Header "SISTEMA DE MICROSERVICIOS - AZULEJOS ROMU"
 Write-ColorOutput "Autor: Script de Pruebas Automatizado" "Cyan"
-Write-ColorOutput "Fecha: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" "Cyan"
+$fechaActual = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+Write-ColorOutput "Fecha: $fechaActual" "Cyan"
 Write-Host ""
 
 Write-ColorOutput "Este script realizará las siguientes acciones:" "Yellow"
