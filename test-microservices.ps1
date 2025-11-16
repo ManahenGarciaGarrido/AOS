@@ -332,7 +332,6 @@ Write-ColorOutput "`n*** BC-2: GESTION DE PEDIDOS ***" "Magenta"
 
 # CU-06: Realizar Pedido de Cliente
 $customerOrder = @{
-    orderNumber = "ORD-2025-001"
     orderType = "CLIENTE"
     customerId = 1
     warehouseId = 1
@@ -346,7 +345,6 @@ Start-Sleep -Seconds 1
 
 # CU-07: Gestionar Pedido de Reposición
 $replenishmentOrder = @{
-    orderNumber = "ORD-2025-002"
     orderType = "REPOSICION"
     warehouseId = 1
     status = "PENDIENTE"
@@ -357,7 +355,6 @@ Start-Sleep -Seconds 1
 
 # CU-08: Gestionar Pedido a Proveedor
 $supplierOrder = @{
-    orderNumber = "ORD-2025-003"
     orderType = "PROVEEDOR"
     supplierId = 1
     warehouseId = 1
