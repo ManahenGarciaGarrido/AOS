@@ -89,7 +89,10 @@ public class RouteController {
     @PostMapping("/optimize")
     public ResponseEntity<Route> optimizeRoute(@RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")
-        List<Long> orderIds = (List<Long>) request.get("orderIds");
+        List<Object> orderIdsRaw = (List<Object>) request.get("orderIds");
+        List<Long> orderIds = orderIdsRaw.stream()
+                .map(id -> Long.valueOf(id.toString()))
+                .toList();
         Long truckId = Long.valueOf(request.get("truckId").toString());
         Long driverId = Long.valueOf(request.get("driverId").toString());
 
