@@ -310,7 +310,7 @@ $stockAdjustment = @{
     productId = 1
     warehouseId = 1
     quantity = 100
-    movementType = "IN"
+    movementType = "ENTRADA"
     notes = "Entrada inicial de stock"
     userId = 1
 }
@@ -408,8 +408,8 @@ Start-Sleep -Seconds 1
 # CU-12: Optimizar Rutas de Entrega
 $driver = @{
     name = "Juan Perez"
-    nif = "12345678A"
-    licenseNumber = "B1234567"
+    nif = "NIF$timestamp"
+    licenseNumber = "LIC$timestamp"
     status = "DISPONIBLE"
 }
 $testResults += Test-ApiEndpoint -CaseNumber "CU-12" -CaseName "Optimizar Rutas de Entrega - Crear Conductor" -Url "http://localhost:8083/drivers" -Method "POST" -Body $driver
@@ -475,7 +475,7 @@ Start-Sleep -Seconds 1
 
 # CU-17: Asignar Mozos a Almacenes
 $warehouseAssignment = @{
-    userId = 1
+    userId = 1 + ([int]$timestamp.Substring($timestamp.Length - 1))
     warehouseId = 1
     assignmentDate = (Get-Date -Format "yyyy-MM-dd")
     isCurrent = $true
