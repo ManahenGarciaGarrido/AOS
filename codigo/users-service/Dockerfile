@@ -3,9 +3,8 @@ FROM maven:3.9.6-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
-# Copiar pom.xml y descargar dependencias (layer cacheado)
+# Copiar pom.xml primero para aprovechar cache de Docker
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
 
 # Copiar código fuente y construir
 COPY src ./src
