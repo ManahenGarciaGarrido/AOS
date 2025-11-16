@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class AuditLogService {
@@ -17,6 +18,10 @@ public class AuditLogService {
 
     public List<AuditLog> findAll() {
         return auditLogRepository.findAll();
+    }
+
+    public Optional<AuditLog> findById(Long id) {
+        return auditLogRepository.findById(id);
     }
 
     public List<AuditLog> findByUserId(Long userId) {
@@ -31,8 +36,28 @@ public class AuditLogService {
         return auditLogRepository.findByAction(action);
     }
 
+    public List<AuditLog> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end) {
+        return auditLogRepository.findByCreatedAtBetween(start, end);
+    }
+
     public List<AuditLog> findByDateRange(LocalDateTime start, LocalDateTime end) {
         return auditLogRepository.findByCreatedAtBetween(start, end);
+    }
+
+    @Transactional
+    public AuditLog log(Long userId, String action, String entityType, Long entityId, String details) {
+        AuditLog log = new AuditLog();
+        log.setUserId(userId);
+        log.setAction(action);
+        log.setEntityType(entityType);
+        log.setEntityId(entityId);
+        log.setDetails(details);
+        log.setCreatedAt(LocalDateTime.now());
+        return auditLogRepository.save(log);
+    }
+
+    public void deleteById(Long id) {
+        auditLogRepository.deleteById(id);
     }
 
     @Transactional
