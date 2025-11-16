@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================
-# Script de Prueba de Microservicios
+# Script de Prueba de Microservicios con Docker
 # Azulejos Romu - Linux/Unix Bash
 # ==========================================
 
@@ -41,8 +41,8 @@ write_info() {
 test_service_health() {
     local service_name=$1
     local url=$2
-    local max_retries=${3:-30}
-    local delay=${4:-2}
+    local max_retries=${3:-60}
+    local delay=${4:-3}
 
     write_info "Verificando $service_name en $url..."
 
@@ -58,29 +58,6 @@ test_service_health() {
     echo ""
     write_error "$service_name no responde después de $max_retries intentos"
     return 1
-}
-
-# Función para iniciar un servicio
-start_service() {
-    local service_name=$1
-    local path=$2
-    local port=$3
-
-    write_info "Iniciando $service_name en puerto $port..."
-
-    # Iniciar en segundo plano usando gnome-terminal, xterm o directamente en background
-    if command -v gnome-terminal &> /dev/null; then
-        gnome-terminal -- bash -c "cd '$path' && echo 'Iniciando $service_name...' && mvn spring-boot:run; exec bash" &
-    elif command -v xterm &> /dev/null; then
-        xterm -e "cd '$path' && echo 'Iniciando $service_name...' && mvn spring-boot:run" &
-    else
-        # Si no hay terminal gráfica, ejecutar en background
-        (cd "$path" && mvn spring-boot:run > "/tmp/$service_name.log" 2>&1) &
-        write_info "Servicio iniciado en background. Log en /tmp/$service_name.log"
-    fi
-
-    sleep 3
-    write_success "$service_name iniciado"
 }
 
 # Función para probar un endpoint
@@ -116,16 +93,17 @@ test_api_endpoint() {
 # ==========================================
 
 clear
-write_header "SISTEMA DE MICROSERVICIOS - AZULEJOS ROMU"
-echo -e "${CYAN}Autor: Script de Pruebas Automatizado${NC}"
+write_header "SISTEMA DE MICROSERVICIOS - AZULEJOS ROMU (DOCKER)"
+echo -e "${CYAN}Autor: Script de Pruebas Automatizado con Docker${NC}"
 echo -e "${CYAN}Fecha: $(date '+%Y-%m-%d %H:%M:%S')${NC}"
 echo ""
 
 echo -e "${YELLOW}Este script realizará las siguientes acciones:${NC}"
-echo -e "${GRAY}  1. Iniciar todos los microservicios en terminales/background${NC}"
-echo -e "${GRAY}  2. Verificar que cada servicio esté funcionando${NC}"
-echo -e "${GRAY}  3. Ejecutar pruebas de endpoints${NC}"
-echo -e "${GRAY}  4. Mostrar resultados de forma visual${NC}"
+echo -e "${GRAY}  1. Verificar que Docker esté instalado y funcionando${NC}"
+echo -e "${GRAY}  2. Construir y levantar todos los contenedores con Docker Compose${NC}"
+echo -e "${GRAY}  3. Verificar que cada servicio esté funcionando${NC}"
+echo -e "${GRAY}  4. Ejecutar pruebas de endpoints${NC}"
+echo -e "${GRAY}  5. Mostrar resultados de forma visual${NC}"
 echo ""
 
 read -p "¿Desea continuar? (S/N): " continue
@@ -137,98 +115,124 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # ==========================================
-# FASE 1: SERVICIOS DE INFRAESTRUCTURA
+# VERIFICAR DOCKER
 # ==========================================
 
-write_header "FASE 1: Iniciando Servicios de Infraestructura"
+write_header "VERIFICANDO PREREQUISITOS"
 
-# Eureka Server
-start_service "Eureka Server" "$SCRIPT_DIR/codigo/eureka-server" 8761
+write_info "Verificando instalación de Docker..."
+if command -v docker &> /dev/null; then
+    docker_version=$(docker --version)
+    write_success "Docker encontrado: $docker_version"
+else
+    write_error "Docker no está instalado o no está en el PATH"
+    write_info "Por favor, instala Docker desde: https://docs.docker.com/get-docker/"
+    exit 1
+fi
+
+write_info "Verificando instalación de Docker Compose..."
+if docker compose version &> /dev/null; then
+    compose_version=$(docker compose version)
+    write_success "Docker Compose encontrado: $compose_version"
+else
+    write_error "Docker Compose no está disponible"
+    exit 1
+fi
+
+write_info "Verificando que Docker esté ejecutándose..."
+if docker ps &> /dev/null; then
+    write_success "Docker está ejecutándose correctamente"
+else
+    write_error "Docker no está ejecutándose. Por favor, inicia el servicio Docker"
+    exit 1
+fi
+
+# ==========================================
+# DETENER CONTENEDORES PREVIOS
+# ==========================================
+
+echo ""
+write_header "LIMPIANDO CONTENEDORES PREVIOS"
+
+write_info "Deteniendo contenedores previos si existen..."
+cd "$SCRIPT_DIR"
+docker compose down &> /dev/null
+write_success "Limpieza completada"
+
+# ==========================================
+# CONSTRUIR Y LEVANTAR SERVICIOS
+# ==========================================
+
+echo ""
+write_header "CONSTRUYENDO Y LEVANTANDO SERVICIOS CON DOCKER COMPOSE"
+
+write_info "Iniciando construcción de imágenes..."
+echo -e "${YELLOW}NOTA: La primera vez puede tardar varios minutos en descargar imágenes y construir...${NC}"
 echo ""
 
-# Esperar a que Eureka esté listo
-if ! test_service_health "Eureka Server" "http://localhost:8761"; then
-    write_error "No se pudo iniciar Eureka Server. Abortando..."
+if docker compose up --build -d; then
+    write_success "Todos los contenedores se han iniciado correctamente"
+else
+    write_error "Error al iniciar los contenedores"
     exit 1
 fi
 
 echo ""
-sleep 5
-
-# Config Server
-start_service "Config Server" "$SCRIPT_DIR/codigo/config-server" 8888
-echo ""
-
-if ! test_service_health "Config Server" "http://localhost:8888/actuator/health"; then
-    write_error "No se pudo iniciar Config Server. Abortando..."
-    exit 1
-fi
-
-echo ""
-write_success "Servicios de infraestructura iniciados correctamente"
-sleep 10
+write_info "Esperando 30 segundos para que los servicios se inicialicen..."
+sleep 30
 
 # ==========================================
-# FASE 2: MICROSERVICIOS DE NEGOCIO
+# VERIFICAR ESTADO DE SERVICIOS
 # ==========================================
 
-write_header "FASE 2: Iniciando Microservicios de Negocio"
-
-# Products Service
-start_service "Products Service" "$SCRIPT_DIR/codigo/products-service" 8081
 echo ""
-sleep 15
+write_header "VERIFICANDO ESTADO DE CONTENEDORES"
 
-if ! test_service_health "Products Service" "http://localhost:8081/actuator/health" 40; then
-    write_error "Products Service no responde, pero continuamos..."
-fi
-
-# Orders Service
-start_service "Orders Service" "$SCRIPT_DIR/codigo/orders-service" 8091
-echo ""
-sleep 15
-
-if ! test_service_health "Orders Service" "http://localhost:8091/actuator/health" 40; then
-    write_error "Orders Service no responde, pero continuamos..."
-fi
-
-# Logistics Service
-start_service "Logistics Service" "$SCRIPT_DIR/codigo/logistics-service" 8101
-echo ""
-sleep 15
-
-if ! test_service_health "Logistics Service" "http://localhost:8101/actuator/health" 40; then
-    write_error "Logistics Service no responde, pero continuamos..."
-fi
-
-# Users Service
-start_service "Users Service" "$SCRIPT_DIR/codigo/users-service" 8111
-echo ""
-sleep 15
-
-if ! test_service_health "Users Service" "http://localhost:8111/actuator/health" 40; then
-    write_error "Users Service no responde, pero continuamos..."
-fi
-
-# Gateway Service
-start_service "Gateway Service" "$SCRIPT_DIR/codigo/gateway-service" 8080
-echo ""
-sleep 15
-
-if ! test_service_health "Gateway Service" "http://localhost:8080/actuator/health" 40; then
-    write_error "Gateway Service no responde, pero continuamos..."
-fi
-
-echo ""
-write_success "Todos los microservicios han sido iniciados"
-write_info "Esperando 20 segundos para que todos los servicios se registren en Eureka..."
-sleep 20
+write_info "Estado actual de los contenedores:"
+docker compose ps
 
 # ==========================================
-# FASE 3: PRUEBAS DE ENDPOINTS
+# VERIFICAR SALUD DE SERVICIOS
 # ==========================================
 
-write_header "FASE 3: Ejecutando Pruebas de Endpoints"
+echo ""
+write_header "VERIFICANDO SALUD DE SERVICIOS"
+
+declare -a health_checks=(
+    "Config Server|http://localhost:8888/actuator/health"
+    "Eureka Server|http://localhost:8761/actuator/health"
+    "Products Service|http://localhost:8081/actuator/health"
+    "Orders Service|http://localhost:8082/actuator/health"
+    "Logistics Service|http://localhost:8083/actuator/health"
+    "Users Service|http://localhost:8084/actuator/health"
+    "Gateway Service|http://localhost:8080/actuator/health"
+)
+
+all_healthy=true
+for check in "${health_checks[@]}"; do
+    IFS='|' read -r name url <<< "$check"
+
+    if ! test_service_health "$name" "$url"; then
+        all_healthy=false
+        write_error "$name no está saludable"
+    fi
+    echo ""
+done
+
+if [ "$all_healthy" = false ]; then
+    write_error "Algunos servicios no están respondiendo correctamente"
+    write_info "Verifica los logs con: docker compose logs [nombre-servicio]"
+    write_info "Ejemplo: docker compose logs products-service"
+fi
+
+write_info "Esperando 15 segundos adicionales para que todos los servicios se registren en Eureka..."
+sleep 15
+
+# ==========================================
+# FASE DE PRUEBAS DE ENDPOINTS
+# ==========================================
+
+write_header "EJECUTANDO PRUEBAS DE ENDPOINTS"
 
 declare -a test_results
 passed=0
@@ -280,7 +284,7 @@ sleep 2
 # Prueba 5: Crear Usuario
 echo ""
 echo -e "${CYAN}═══ TEST 5: Crear Usuario ═══${NC}"
-if test_api_endpoint "POST /users/users" "http://localhost:8111/users" "POST" \
+if test_api_endpoint "POST /users/users" "http://localhost:8084/users" "POST" \
     '{"username":"admin","password":"admin123","fullName":"Administrador Sistema","email":"admin@azulejosromu.com","role":"ADMIN"}'; then
     ((passed++))
 else
@@ -291,7 +295,7 @@ sleep 2
 # Prueba 6: Login
 echo ""
 echo -e "${CYAN}═══ TEST 6: Login de Usuario ═══${NC}"
-if test_api_endpoint "POST /users/auth/login" "http://localhost:8111/auth/login" "POST" \
+if test_api_endpoint "POST /users/auth/login" "http://localhost:8084/auth/login" "POST" \
     '{"username":"admin","password":"admin123"}'; then
     ((passed++))
 else
@@ -302,7 +306,7 @@ sleep 2
 # Prueba 7: Crear Camión
 echo ""
 echo -e "${CYAN}═══ TEST 7: Crear Camión ═══${NC}"
-if test_api_endpoint "POST /logistics/trucks" "http://localhost:8101/trucks" "POST" \
+if test_api_endpoint "POST /logistics/trucks" "http://localhost:8083/trucks" "POST" \
     '{"licensePlate":"1234ABC","brand":"Mercedes","model":"Actros","year":2022,"status":"DISPONIBLE"}'; then
     ((passed++))
 else
@@ -335,7 +339,7 @@ echo -e "${RED}Fallidas: $failed${NC}"
 echo -e "${CYAN}════════════════════════════════════${NC}"
 
 # ==========================================
-# INFORMACIÓN DE URLS
+# INFORMACIÓN DE URLS Y COMANDOS
 # ==========================================
 
 echo ""
@@ -344,20 +348,38 @@ write_header "URLs DE LOS SERVICIOS"
 echo -e "${YELLOW}Eureka Dashboard:      http://localhost:8761${NC}"
 echo -e "${YELLOW}Gateway:               http://localhost:8080${NC}"
 echo -e "${YELLOW}Products Service:      http://localhost:8081${NC}"
-echo -e "${YELLOW}Orders Service:        http://localhost:8091${NC}"
-echo -e "${YELLOW}Logistics Service:     http://localhost:8101${NC}"
-echo -e "${YELLOW}Users Service:         http://localhost:8111${NC}"
+echo -e "${YELLOW}Orders Service:        http://localhost:8082${NC}"
+echo -e "${YELLOW}Logistics Service:     http://localhost:8083${NC}"
+echo -e "${YELLOW}Users Service:         http://localhost:8084${NC}"
 
 echo ""
 echo -e "${CYAN}═══ Swagger UI ═══${NC}"
 echo -e "${YELLOW}Products:  http://localhost:8081/swagger-ui/index.html${NC}"
-echo -e "${YELLOW}Orders:    http://localhost:8091/swagger-ui/index.html${NC}"
-echo -e "${YELLOW}Logistics: http://localhost:8101/swagger-ui/index.html${NC}"
-echo -e "${YELLOW}Users:     http://localhost:8111/swagger-ui/index.html${NC}"
+echo -e "${YELLOW}Orders:    http://localhost:8082/swagger-ui/index.html${NC}"
+echo -e "${YELLOW}Logistics: http://localhost:8083/swagger-ui/index.html${NC}"
+echo -e "${YELLOW}Users:     http://localhost:8084/swagger-ui/index.html${NC}"
+
+echo ""
+write_header "COMANDOS ÚTILES DE DOCKER"
+
+echo -e "${CYAN}Ver logs de todos los servicios:${NC}"
+echo -e "${GRAY}  docker compose logs -f${NC}"
+
+echo -e "${CYAN}Ver logs de un servicio específico:${NC}"
+echo -e "${GRAY}  docker compose logs -f products-service${NC}"
+
+echo -e "${CYAN}Detener todos los servicios:${NC}"
+echo -e "${GRAY}  docker compose down${NC}"
+
+echo -e "${CYAN}Detener y eliminar volúmenes:${NC}"
+echo -e "${GRAY}  docker compose down -v${NC}"
+
+echo -e "${CYAN}Ver estado de contenedores:${NC}"
+echo -e "${GRAY}  docker compose ps${NC}"
 
 echo ""
 write_success "Script de pruebas completado!"
-write_info "Los servicios seguirán ejecutándose en segundo plano"
-write_info "Para detener todos los servicios, ejecuta: pkill -f 'spring-boot:run'"
+write_info "Los servicios están ejecutándose en contenedores Docker"
+write_info "Para detenerlos ejecuta: docker compose down"
 
 echo ""

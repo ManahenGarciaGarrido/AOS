@@ -1,5 +1,5 @@
 # ==========================================
-# Script de Prueba de Microservicios
+# Script de Prueba de Microservicios con Docker
 # Azulejos Romu - Windows PowerShell
 # ==========================================
 
@@ -44,15 +44,15 @@ function Test-ServiceHealth {
     param(
         [string]$ServiceName,
         [string]$Url,
-        [int]$MaxRetries = 30,
-        [int]$DelaySeconds = 2
+        [int]$MaxRetries = 60,
+        [int]$DelaySeconds = 3
     )
 
     Write-Info "Verificando $ServiceName en $Url..."
 
     for ($i = 1; $i -le $MaxRetries; $i++) {
         try {
-            $response = Invoke-WebRequest -Uri $Url -Method GET -TimeoutSec 2 -ErrorAction Stop
+            $response = Invoke-WebRequest -Uri $Url -Method GET -TimeoutSec 3 -ErrorAction Stop
             if ($response.StatusCode -eq 200) {
                 Write-Success "$ServiceName esta funcionando! (Intento $i/$MaxRetries)"
                 return $true
@@ -67,31 +67,6 @@ function Test-ServiceHealth {
     Write-Host ""
     Write-Error "$ServiceName no responde despues de $MaxRetries intentos"
     return $false
-}
-
-function Start-Service {
-    param(
-        [string]$ServiceName,
-        [string]$Path,
-        [int]$Port
-    )
-
-    Write-Info "Iniciando $ServiceName en puerto $Port..."
-
-    # Crear script temporal para evitar problemas de comillas
-    $scriptBlock = @"
-cd "$Path"
-Write-Host "Iniciando $ServiceName..." -ForegroundColor Cyan
-mvn spring-boot:run
-"@
-
-    $scriptPath = "$env:TEMP\start-$ServiceName-$Port.ps1"
-    $scriptBlock | Out-File -FilePath $scriptPath -Encoding UTF8
-
-    Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $scriptPath -WindowStyle Normal
-
-    Start-Sleep -Seconds 3
-    Write-Success "$ServiceName iniciado (ventana separada)"
 }
 
 function Test-ApiEndpoint {
@@ -137,17 +112,18 @@ function Test-ApiEndpoint {
 # ==========================================
 
 Clear-Host
-Write-Header "SISTEMA DE MICROSERVICIOS - AZULEJOS ROMU"
-Write-ColorOutput "Autor: Script de Pruebas Automatizado" "Cyan"
+Write-Header "SISTEMA DE MICROSERVICIOS - AZULEJOS ROMU (DOCKER)"
+Write-ColorOutput "Autor: Script de Pruebas Automatizado con Docker" "Cyan"
 $fechaActual = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-ColorOutput "Fecha: $fechaActual" "Cyan"
 Write-Host ""
 
 Write-ColorOutput "Este script realizara las siguientes acciones:" "Yellow"
-Write-Host "  1. Iniciar todos los microservicios en ventanas separadas" -ForegroundColor Gray
-Write-Host "  2. Verificar que cada servicio este funcionando" -ForegroundColor Gray
-Write-Host "  3. Ejecutar pruebas de endpoints" -ForegroundColor Gray
-Write-Host "  4. Mostrar resultados de forma visual" -ForegroundColor Gray
+Write-Host "  1. Verificar que Docker este instalado y funcionando" -ForegroundColor Gray
+Write-Host "  2. Construir y levantar todos los contenedores con Docker Compose" -ForegroundColor Gray
+Write-Host "  3. Verificar que cada servicio este funcionando" -ForegroundColor Gray
+Write-Host "  4. Ejecutar pruebas de endpoints" -ForegroundColor Gray
+Write-Host "  5. Mostrar resultados de forma visual" -ForegroundColor Gray
 Write-Host ""
 
 $continue = Read-Host "Desea continuar? (S/N)"
@@ -159,98 +135,132 @@ if ($continue -ne "S" -and $continue -ne "s") {
 $projectRoot = $PSScriptRoot
 
 # ==========================================
-# FASE 1: SERVICIOS DE INFRAESTRUCTURA
+# VERIFICAR DOCKER
 # ==========================================
 
-Write-Header "FASE 1: Iniciando Servicios de Infraestructura"
+Write-Header "VERIFICANDO PREREQUISITOS"
 
-# Eureka Server
-Start-Service -ServiceName "Eureka-Server" -Path "$projectRoot\codigo\eureka-server" -Port 8761
+Write-Info "Verificando instalacion de Docker..."
+try {
+    $dockerVersion = docker --version
+    Write-Success "Docker encontrado: $dockerVersion"
+} catch {
+    Write-Error "Docker no esta instalado o no esta en el PATH"
+    Write-Info "Por favor, instala Docker Desktop desde: https://www.docker.com/products/docker-desktop"
+    exit 1
+}
+
+Write-Info "Verificando instalacion de Docker Compose..."
+try {
+    $composeVersion = docker compose version
+    Write-Success "Docker Compose encontrado: $composeVersion"
+} catch {
+    Write-Error "Docker Compose no esta disponible"
+    exit 1
+}
+
+Write-Info "Verificando que Docker este ejecutandose..."
+try {
+    docker ps | Out-Null
+    Write-Success "Docker esta ejecutandose correctamente"
+} catch {
+    Write-Error "Docker no esta ejecutandose. Por favor, inicia Docker Desktop"
+    exit 1
+}
+
+# ==========================================
+# DETENER CONTENEDORES PREVIOS
+# ==========================================
+
+Write-Host ""
+Write-Header "LIMPIANDO CONTENEDORES PREVIOS"
+
+Write-Info "Deteniendo contenedores previos si existen..."
+cd $projectRoot
+docker compose down 2>&1 | Out-Null
+Write-Success "Limpieza completada"
+
+# ==========================================
+# CONSTRUIR Y LEVANTAR SERVICIOS
+# ==========================================
+
+Write-Host ""
+Write-Header "CONSTRUYENDO Y LEVANTANDO SERVICIOS CON DOCKER COMPOSE"
+
+Write-Info "Iniciando construccion de imagenes..."
+Write-ColorOutput "NOTA: La primera vez puede tardar varios minutos en descargar imagenes y construir..." "Yellow"
 Write-Host ""
 
-# Esperar a que Eureka este listo
-if (-not (Test-ServiceHealth -ServiceName "Eureka Server" -Url "http://localhost:8761")) {
-    Write-Error "No se pudo iniciar Eureka Server. Abortando..."
+$dockerComposeOutput = docker compose up --build -d 2>&1
+if ($LASTEXITCODE -eq 0) {
+    Write-Success "Todos los contenedores se han iniciado correctamente"
+} else {
+    Write-Error "Error al iniciar los contenedores"
+    Write-Host $dockerComposeOutput
     exit 1
 }
 
 Write-Host ""
-Start-Sleep -Seconds 5
-
-# Config Server
-Start-Service -ServiceName "Config-Server" -Path "$projectRoot\codigo\config-server" -Port 8888
-Write-Host ""
-
-if (-not (Test-ServiceHealth -ServiceName "Config Server" -Url "http://localhost:8888/actuator/health")) {
-    Write-Error "No se pudo iniciar Config Server. Abortando..."
-    exit 1
-}
-
-Write-Host ""
-Write-Success "Servicios de infraestructura iniciados correctamente"
-Start-Sleep -Seconds 10
+Write-Info "Esperando 30 segundos para que los servicios se inicialicen..."
+Start-Sleep -Seconds 30
 
 # ==========================================
-# FASE 2: MICROSERVICIOS DE NEGOCIO
+# VERIFICAR ESTADO DE SERVICIOS
 # ==========================================
 
-Write-Header "FASE 2: Iniciando Microservicios de Negocio"
-
-# Products Service
-Start-Service -ServiceName "Products-Service" -Path "$projectRoot\codigo\products-service" -Port 8081
 Write-Host ""
-Start-Sleep -Seconds 15
+Write-Header "VERIFICANDO ESTADO DE CONTENEDORES"
 
-if (-not (Test-ServiceHealth -ServiceName "Products Service" -Url "http://localhost:8081/actuator/health" -MaxRetries 40)) {
-    Write-Error "Products Service no responde, pero continuamos..."
-}
-
-# Orders Service
-Start-Service -ServiceName "Orders-Service" -Path "$projectRoot\codigo\orders-service" -Port 8091
-Write-Host ""
-Start-Sleep -Seconds 15
-
-if (-not (Test-ServiceHealth -ServiceName "Orders Service" -Url "http://localhost:8091/actuator/health" -MaxRetries 40)) {
-    Write-Error "Orders Service no responde, pero continuamos..."
-}
-
-# Logistics Service
-Start-Service -ServiceName "Logistics-Service" -Path "$projectRoot\codigo\logistics-service" -Port 8101
-Write-Host ""
-Start-Sleep -Seconds 15
-
-if (-not (Test-ServiceHealth -ServiceName "Logistics Service" -Url "http://localhost:8101/actuator/health" -MaxRetries 40)) {
-    Write-Error "Logistics Service no responde, pero continuamos..."
-}
-
-# Users Service
-Start-Service -ServiceName "Users-Service" -Path "$projectRoot\codigo\users-service" -Port 8111
-Write-Host ""
-Start-Sleep -Seconds 15
-
-if (-not (Test-ServiceHealth -ServiceName "Users Service" -Url "http://localhost:8111/actuator/health" -MaxRetries 40)) {
-    Write-Error "Users Service no responde, pero continuamos..."
-}
-
-# Gateway Service
-Start-Service -ServiceName "Gateway-Service" -Path "$projectRoot\codigo\gateway-service" -Port 8080
-Write-Host ""
-Start-Sleep -Seconds 15
-
-if (-not (Test-ServiceHealth -ServiceName "Gateway Service" -Url "http://localhost:8080/actuator/health" -MaxRetries 40)) {
-    Write-Error "Gateway Service no responde, pero continuamos..."
-}
-
-Write-Host ""
-Write-Success "Todos los microservicios han sido iniciados"
-Write-Info "Esperando 20 segundos para que todos los servicios se registren en Eureka..."
-Start-Sleep -Seconds 20
+Write-Info "Estado actual de los contenedores:"
+docker compose ps
 
 # ==========================================
-# FASE 3: PRUEBAS DE ENDPOINTS
+# VERIFICAR SALUD DE SERVICIOS
 # ==========================================
 
-Write-Header "FASE 3: Ejecutando Pruebas de Endpoints"
+Write-Host ""
+Write-Header "VERIFICANDO SALUD DE SERVICIOS"
+
+$healthChecks = @(
+    @{ Name = "MySQL Database"; Url = "http://localhost:3306" },
+    @{ Name = "Config Server"; Url = "http://localhost:8888/actuator/health" },
+    @{ Name = "Eureka Server"; Url = "http://localhost:8761/actuator/health" },
+    @{ Name = "Products Service"; Url = "http://localhost:8081/actuator/health" },
+    @{ Name = "Orders Service"; Url = "http://localhost:8082/actuator/health" },
+    @{ Name = "Logistics Service"; Url = "http://localhost:8083/actuator/health" },
+    @{ Name = "Users Service"; Url = "http://localhost:8084/actuator/health" },
+    @{ Name = "Gateway Service"; Url = "http://localhost:8080/actuator/health" }
+)
+
+$allHealthy = $true
+foreach ($check in $healthChecks) {
+    # Skip MySQL TCP check
+    if ($check.Name -eq "MySQL Database") {
+        Write-Info "MySQL se verificara indirectamente a traves de los servicios"
+        continue
+    }
+
+    if (-not (Test-ServiceHealth -ServiceName $check.Name -Url $check.Url)) {
+        $allHealthy = $false
+        Write-Error "$($check.Name) no esta saludable"
+    }
+    Write-Host ""
+}
+
+if (-not $allHealthy) {
+    Write-Error "Algunos servicios no estan respondiendo correctamente"
+    Write-Info "Verifica los logs con: docker compose logs [nombre-servicio]"
+    Write-Info "Ejemplo: docker compose logs products-service"
+}
+
+Write-Info "Esperando 15 segundos adicionales para que todos los servicios se registren en Eureka..."
+Start-Sleep -Seconds 15
+
+# ==========================================
+# FASE DE PRUEBAS DE ENDPOINTS
+# ==========================================
+
+Write-Header "EJECUTANDO PRUEBAS DE ENDPOINTS"
 
 $testResults = @()
 
@@ -316,7 +326,7 @@ $user = @{
     email = "admin@azulejosromu.com"
     role = "ADMIN"
 }
-$result = Test-ApiEndpoint -Name "POST /users/users" -Url "http://localhost:8111/users" -Method "POST" -Body $user
+$result = Test-ApiEndpoint -Name "POST /users/users" -Url "http://localhost:8084/users" -Method "POST" -Body $user
 $testResults += @{ Test = "Crear Usuario"; Result = $result }
 
 Start-Sleep -Seconds 2
@@ -328,7 +338,7 @@ $credentials = @{
     username = "admin"
     password = "admin123"
 }
-$result = Test-ApiEndpoint -Name "POST /users/auth/login" -Url "http://localhost:8111/auth/login" -Method "POST" -Body $credentials
+$result = Test-ApiEndpoint -Name "POST /users/auth/login" -Url "http://localhost:8084/auth/login" -Method "POST" -Body $credentials
 $testResults += @{ Test = "Login Usuario"; Result = $result }
 
 Start-Sleep -Seconds 2
@@ -343,7 +353,7 @@ $truck = @{
     year = 2022
     status = "DISPONIBLE"
 }
-$result = Test-ApiEndpoint -Name "POST /logistics/trucks" -Url "http://localhost:8101/trucks" -Method "POST" -Body $truck
+$result = Test-ApiEndpoint -Name "POST /logistics/trucks" -Url "http://localhost:8083/trucks" -Method "POST" -Body $truck
 $testResults += @{ Test = "Crear Camion"; Result = $result }
 
 Start-Sleep -Seconds 2
@@ -381,7 +391,7 @@ Write-ColorOutput "Fallidas: $failed" "Red"
 Write-ColorOutput "====================================" "Cyan"
 
 # ==========================================
-# INFORMACION DE URLS
+# INFORMACION DE URLS Y COMANDOS
 # ==========================================
 
 Write-Host ""
@@ -390,20 +400,38 @@ Write-Header "URLs DE LOS SERVICIOS"
 Write-ColorOutput "Eureka Dashboard:      http://localhost:8761" "Yellow"
 Write-ColorOutput "Gateway:               http://localhost:8080" "Yellow"
 Write-ColorOutput "Products Service:      http://localhost:8081" "Yellow"
-Write-ColorOutput "Orders Service:        http://localhost:8091" "Yellow"
-Write-ColorOutput "Logistics Service:     http://localhost:8101" "Yellow"
-Write-ColorOutput "Users Service:         http://localhost:8111" "Yellow"
+Write-ColorOutput "Orders Service:        http://localhost:8082" "Yellow"
+Write-ColorOutput "Logistics Service:     http://localhost:8083" "Yellow"
+Write-ColorOutput "Users Service:         http://localhost:8084" "Yellow"
 
 Write-Host ""
 Write-ColorOutput "=== Swagger UI ===" "Cyan"
 Write-ColorOutput "Products:  http://localhost:8081/swagger-ui/index.html" "Yellow"
-Write-ColorOutput "Orders:    http://localhost:8091/swagger-ui/index.html" "Yellow"
-Write-ColorOutput "Logistics: http://localhost:8101/swagger-ui/index.html" "Yellow"
-Write-ColorOutput "Users:     http://localhost:8111/swagger-ui/index.html" "Yellow"
+Write-ColorOutput "Orders:    http://localhost:8082/swagger-ui/index.html" "Yellow"
+Write-ColorOutput "Logistics: http://localhost:8083/swagger-ui/index.html" "Yellow"
+Write-ColorOutput "Users:     http://localhost:8084/swagger-ui/index.html" "Yellow"
+
+Write-Host ""
+Write-Header "COMANDOS UTILES DE DOCKER"
+
+Write-ColorOutput "Ver logs de todos los servicios:" "Cyan"
+Write-Host "  docker compose logs -f" -ForegroundColor Gray
+
+Write-ColorOutput "Ver logs de un servicio especifico:" "Cyan"
+Write-Host "  docker compose logs -f products-service" -ForegroundColor Gray
+
+Write-ColorOutput "Detener todos los servicios:" "Cyan"
+Write-Host "  docker compose down" -ForegroundColor Gray
+
+Write-ColorOutput "Detener y eliminar volumenes:" "Cyan"
+Write-Host "  docker compose down -v" -ForegroundColor Gray
+
+Write-ColorOutput "Ver estado de contenedores:" "Cyan"
+Write-Host "  docker compose ps" -ForegroundColor Gray
 
 Write-Host ""
 Write-Success "Script de pruebas completado!"
-Write-Info "Los servicios seguiran ejecutandose en las ventanas abiertas"
-Write-Info "Cierra las ventanas manualmente cuando quieras detener los servicios"
+Write-Info "Los servicios estan ejecutandose en contenedores Docker"
+Write-Info "Para detenerlos ejecuta: docker compose down"
 
 Write-Host ""
