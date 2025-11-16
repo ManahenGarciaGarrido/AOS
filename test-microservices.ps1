@@ -264,9 +264,10 @@ $testResults = @()
 Write-ColorOutput "`n*** BC-1: GESTION DE PRODUCTOS Y STOCK ***" "Magenta"
 
 # CU-01: Mantener Catálogo de Productos
+$timestamp = Get-Date -Format "HHmmss"
 $category = @{
-    code = "AZUL001"
-    name = "Azulejos Bano"
+    code = "AZUL$timestamp"
+    name = "Azulejos Bano $timestamp"
     description = "Azulejos para bano"
 }
 $testResults += Test-ApiEndpoint -CaseNumber "CU-01" -CaseName "Mantener Catalogo de Productos - Crear Categoria" -Url "http://localhost:8081/categories" -Method "POST" -Body $category
@@ -274,11 +275,11 @@ Start-Sleep -Seconds 1
 
 $supplier = @{
     name = "Ceramicas Romu S.L."
-    nif = "B12345678"
+    nif = "B$timestamp"
     city = "Valencia"
     country = "Espana"
     phone = "+34 960 000 000"
-    email = "contacto@ceramicasromu.com"
+    email = "contacto$timestamp@ceramicasromu.com"
 }
 $testResults += Test-ApiEndpoint -CaseNumber "CU-01" -CaseName "Mantener Catalogo de Productos - Crear Producto" -Url "http://localhost:8081/suppliers" -Method "POST" -Body $supplier
 Start-Sleep -Seconds 1
@@ -287,13 +288,13 @@ Start-Sleep -Seconds 1
 $testResults += Test-ApiEndpoint -CaseNumber "CU-02" -CaseName "Gestionar Proveedores - Listar Proveedores" -Url "http://localhost:8081/suppliers" -Method "GET"
 Start-Sleep -Seconds 1
 
-$testResults += Test-ApiEndpoint -CaseNumber "CU-02" -CaseName "Gestionar Proveedores - Buscar por NIF" -Url "http://localhost:8081/suppliers/nif/B12345678" -Method "GET"
+$testResults += Test-ApiEndpoint -CaseNumber "CU-02" -CaseName "Gestionar Proveedores - Buscar por NIF" -Url "http://localhost:8081/suppliers/nif/B$timestamp" -Method "GET"
 Start-Sleep -Seconds 1
 
 # CU-03: Consultar Stock Disponible
 $warehouse = @{
-    code = "ALM001"
-    name = "Almacen Central"
+    code = "ALM$timestamp"
+    name = "Almacen Central $timestamp"
     city = "Valencia"
     latitude = 39.4699
     longitude = -0.3763
@@ -332,10 +333,10 @@ Write-ColorOutput "`n*** BC-2: GESTION DE PEDIDOS ***" "Magenta"
 # CU-06: Realizar Pedido de Cliente
 $customerOrder = @{
     orderNumber = "ORD-2025-001"
-    orderType = "CUSTOMER"
+    orderType = "CLIENTE"
     customerId = 1
-    status = "PENDING"
-    deliveryType = "HOME"
+    warehouseId = 1
+    status = "PENDIENTE"
     deliveryAddress = "Calle Mayor 25, Plasencia"
     deliveryCity = "Plasencia"
     totalAmount = 775.00
@@ -346,9 +347,9 @@ Start-Sleep -Seconds 1
 # CU-07: Gestionar Pedido de Reposición
 $replenishmentOrder = @{
     orderNumber = "ORD-2025-002"
-    orderType = "REPLENISHMENT"
+    orderType = "REPOSICION"
     warehouseId = 1
-    status = "PENDING"
+    status = "PENDIENTE"
     totalAmount = 1500.00
 }
 $testResults += Test-ApiEndpoint -CaseNumber "CU-07" -CaseName "Gestionar Pedido de Reposicion" -Url "http://localhost:8082/orders" -Method "POST" -Body $replenishmentOrder
@@ -357,9 +358,10 @@ Start-Sleep -Seconds 1
 # CU-08: Gestionar Pedido a Proveedor
 $supplierOrder = @{
     orderNumber = "ORD-2025-003"
-    orderType = "SUPPLIER"
+    orderType = "PROVEEDOR"
     supplierId = 1
-    status = "PENDING"
+    warehouseId = 1
+    status = "PENDIENTE"
     totalAmount = 5000.00
 }
 $testResults += Test-ApiEndpoint -CaseNumber "CU-08" -CaseName "Gestionar Pedido a Proveedor" -Url "http://localhost:8082/orders" -Method "POST" -Body $supplierOrder
@@ -367,7 +369,7 @@ Start-Sleep -Seconds 1
 
 # CU-09: Actualizar Estado de Pedido
 $statusUpdate = @{
-    status = "PREPARING"
+    status = "EN_PREPARACION"
     userId = 1
     notes = "Pedido en preparacion"
 }
@@ -378,7 +380,7 @@ Start-Sleep -Seconds 1
 $testResults += Test-ApiEndpoint -CaseNumber "CU-10" -CaseName "Consultar Historial de Pedidos - Listar Todos" -Url "http://localhost:8082/orders" -Method "GET"
 Start-Sleep -Seconds 1
 
-$testResults += Test-ApiEndpoint -CaseNumber "CU-10" -CaseName "Consultar Historial de Pedidos - Por Tipo" -Url "http://localhost:8082/orders/type/CUSTOMER" -Method "GET"
+$testResults += Test-ApiEndpoint -CaseNumber "CU-10" -CaseName "Consultar Historial de Pedidos - Por Tipo" -Url "http://localhost:8082/orders/type/CLIENTE" -Method "GET"
 Start-Sleep -Seconds 1
 
 # =========================================
@@ -389,13 +391,13 @@ Write-ColorOutput "`n*** BC-3: LOGISTICA Y DISTRIBUCION ***" "Magenta"
 
 # CU-11: Gestionar Flota de Camiones
 $truck = @{
-    licensePlate = "1234ABC"
+    licensePlate = "$timestamp-ABC"
     brand = "Mercedes"
     model = "Actros"
     year = 2022
     status = "DISPONIBLE"
     loadCapacityKg = 12000
-    volumeCapacitym3 = 40
+    volumeCapacityM3 = 40
 }
 $testResults += Test-ApiEndpoint -CaseNumber "CU-11" -CaseName "Gestionar Flota de Camiones - Crear Camion" -Url "http://localhost:8083/trucks" -Method "POST" -Body $truck
 Start-Sleep -Seconds 1
@@ -448,17 +450,17 @@ Write-ColorOutput "`n*** BC-4: GESTION DE USUARIOS Y SEGURIDAD ***" "Magenta"
 
 # CU-15: Autenticar Usuario
 $user = @{
-    username = "admin"
+    username = "admin$timestamp"
     password = "admin123"
     fullName = "Administrador Sistema"
-    email = "admin@azulejosromu.com"
+    email = "admin$timestamp@azulejosromu.com"
     role = "ADMIN"
 }
 $testResults += Test-ApiEndpoint -CaseNumber "CU-15" -CaseName "Autenticar Usuario - Crear Usuario" -Url "http://localhost:8084/users" -Method "POST" -Body $user
 Start-Sleep -Seconds 1
 
 $credentials = @{
-    username = "admin"
+    username = "admin$timestamp"
     password = "admin123"
 }
 $testResults += Test-ApiEndpoint -CaseNumber "CU-15" -CaseName "Autenticar Usuario - Login" -Url "http://localhost:8084/auth/login" -Method "POST" -Body $credentials
